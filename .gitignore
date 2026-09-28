@@ -1,0 +1,17 @@
+# ===== 构建产物 =====
+target/
+*/target/
+build/output/
+
+# ===== IDE =====
+.idea/
+*.iml
+.vscode/
+
+# ===== 前端 =====
+node_modules/
+
+# ===== 本地环境 / 系统 =====
+application-local.yml
+*.log
+.DS_Store

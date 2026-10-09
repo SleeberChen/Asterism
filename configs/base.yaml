@@ -1,0 +1,29 @@
+# 基础配置（外部化，TC-17）。可被环境变量 ASTERISM__* 覆盖。
+# 密钥类字段仅以「定位引用」（环境变量名）持有，不写明文（TC-02）。
+app:
+  name: asterism
+  env: base
+
+deployment:
+  # 运行形态双模（P0 CON05 / P3 §7.1）：
+  #   standalone = 独立部署（默认可运行，12/12 应用，APP-SYSMGMT 全量启用）
+  #   nebula     = 并入星云体系（11/12，APP-SYSMGMT 不启用，用户/权限由星云提供）
+  # 可用环境变量覆盖：ASTERISM__DEPLOYMENT__MODE=nebula
+  mode: standalone
+
+model:
+  # 供应商清单与优先级：配置化，不硬编码（TC-17）。真实密钥经 SecretRef 定位，运行时不读明文。
+  providers:
+    - name: stub
+      priority: 1
+      api_key: MODEL_API_KEY   # 仅定位引用（env var 名），密钥后端注入，TC-02
+  fallback_enabled: true        # 模型不可用走备用供应商（ADR-008）
+
+rag:
+  top_k: 4
+  max_context_tokens: 2000
+
+feature_flags:
+  rag_demo_enabled: true
+  strict_tenant_isolation: true
+  memory_compression: false

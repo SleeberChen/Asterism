@@ -1,0 +1,7 @@
+app:
+  env: test
+rag:
+  top_k: 2
+feature_flags:
+  rag_demo_enabled: true
+  strict_tenant_isolation: true

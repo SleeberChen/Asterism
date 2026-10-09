@@ -1,0 +1,40 @@
+# 架构守护契约（GATE-04 来源，与 P5 §2.2 依赖矩阵同源）
+#
+# 唯一来源：改矩阵即改契约（P5 §2.2：本矩阵 + TC-09/10/11 即契约文件唯一来源）。
+# 允许边（allowed[源区域] = 可依赖区域列表）；未列出的边即禁止。
+# 组合根（Composition Root）：四层 + seedwork + plugins 之外的模块一律判为 root，
+# 允许依赖全部区域（依赖倒置的合法装配点）。当前 root 区成员：
+#   - asterism/main.py          （ASGI 工厂 / 全局异常 / lifespan）
+#   - asterism/bootstrap/**     （逐应用装配：include_router + 装配 app.state 用例）
+# 为何需要 bootstrap/**：装配一个应用须同时 import interfaces（路由）、application（用例）、
+# infrastructure（适配器），而矩阵禁止 interfaces/application → infrastructure，
+# 故装配代码不能放进任何一层，只能位于四层之外（与 main.py 同属组合根语义延伸）。
+# 纪律：bootstrap/** 只做装配，禁止写业务逻辑；新增应用＝新增 bootstrap/<app>.py
+# 并登记进 registry.APP_WIRINGS，不改 main.py（开闭原则）。
+
+[areas]
+seedwork       = "asterism.seedwork"
+interfaces     = "asterism.interfaces"
+application    = "asterism.application"
+domain         = "asterism.domain"
+infrastructure = "asterism.infrastructure"
+plugins_kernel = "asterism.plugins.kernel"
+plugins_model  = "asterism.plugins.model"
+plugins_tool   = "asterism.plugins.tool"
+plugins_skill  = "asterism.plugins.skill"
+plugins_memory = "asterism.plugins.memory"
+
+[allowed]
+# 跨层依赖方向：接口→应用→领域←基础设施；领域零框架依赖（TC-09/10）
+seedwork       = ["seedwork"]
+interfaces     = ["interfaces", "application", "domain", "seedwork", "plugins_kernel", "plugins_model", "plugins_tool", "plugins_skill", "plugins_memory"]
+application    = ["application", "domain", "seedwork", "plugins_kernel", "plugins_model", "plugins_tool", "plugins_skill", "plugins_memory"]
+domain         = ["domain", "seedwork", "plugins_kernel"]
+infrastructure = ["infrastructure", "domain", "seedwork", "plugins_kernel", "plugins_model", "plugins_tool", "plugins_skill", "plugins_memory"]
+# 插件内核不反向依赖四类插件（TC-11）
+plugins_kernel = ["plugins_kernel", "seedwork"]
+# 四类插件互不依赖（TC-11）；可依赖内核/seedwork/领域端口
+plugins_model  = ["plugins_model", "plugins_kernel", "seedwork", "domain"]
+plugins_tool   = ["plugins_tool", "plugins_kernel", "seedwork", "domain"]
+plugins_skill  = ["plugins_skill", "plugins_kernel", "seedwork", "domain"]
+plugins_memory = ["plugins_memory", "plugins_kernel", "seedwork", "domain"]

@@ -13,5 +13,25 @@ node_modules/
 
 # ===== 本地环境 / 系统 =====
 application-local.yml
+*.local.yml
 *.log
 .DS_Store
+
+# ===== 密钥与凭据（TC-01：禁止进入代码库与镜像）=====
+.env
+*.env
+.env.*
+secrets/
+*.local.env
+credentials/
+
+# ===== 构建 / 依赖 =====
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/

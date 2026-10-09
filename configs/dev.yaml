@@ -1,0 +1,6 @@
+app:
+  env: dev
+rag:
+  top_k: 4
+feature_flags:
+  rag_demo_enabled: true

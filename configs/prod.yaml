@@ -1,0 +1,9 @@
+app:
+  env: prod
+rag:
+  top_k: 6
+  max_context_tokens: 4000
+feature_flags:
+  rag_demo_enabled: true
+  strict_tenant_isolation: true
+  memory_compression: true

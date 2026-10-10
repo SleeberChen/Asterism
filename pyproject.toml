@@ -2,6 +2,7 @@
 name = "asterism"
 version = "0.1.0"
 description = "Asterism 企业级 AI 应用开发框架（Python 3.13 + FastAPI，DDD 四层 + 一切皆插件）"
+license = "Apache-2.0"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 # 一等依赖版本由 `uv` 实测解析并锁定为精确版本（P5 §4.2 V1 / TC-06：禁止 latest/范围/留空）

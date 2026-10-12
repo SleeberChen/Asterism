@@ -27,3 +27,18 @@ class ModelResponse:
     tenant_id: str
     model: str
     request_id: Optional[str] = None
+
+
+@dataclass
+class ModelChunk:
+    """流式输出片段（SSE / 增量响应载荷）。
+
+    ``content`` 为本片文本；``finished=True`` 表示最后一帧，可用于承载最终元数据。
+    领域层纯数据，无 IO（端口 / 适配器负责按片段产出）。
+    """
+
+    content: str
+    tenant_id: str
+    model: str
+    request_id: Optional[str] = None
+    finished: bool = False

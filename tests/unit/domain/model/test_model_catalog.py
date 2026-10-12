@@ -147,10 +147,15 @@ class _FakePort:
         yield ModelChunk(content=full[mid:], tenant_id=request.tenant_id, model=request.model, finished=True)
 
 
+def _fake_resolver(vendor):
+    """测试用供应商解析器：忽略厂商，固定返回 ``_FakePort`` 桩（``Callable[[Vendor], ModelPort]``）。"""
+    return _FakePort()
+
+
 async def test_execute_stream_direct_path_marks_final_chunk():
     token = set_tenant_context(TenantContext(tenant_id="t1", request_id="r9"))
     try:
-        uc = ModelInvokeUseCase(_FakePort())
+        uc = ModelInvokeUseCase(provider_resolver=_fake_resolver, port=_FakePort())
         chunks = [c async for c in uc.execute_stream("你好", request_id="r9", model="default")]
     finally:
         reset_tenant_context(token)
@@ -171,7 +176,7 @@ class _FakeNonStreamingPort:
 async def test_execute_stream_falls_back_to_buffered_when_port_not_streaming():
     token = set_tenant_context(TenantContext(tenant_id="t1", request_id="r10"))
     try:
-        uc = ModelInvokeUseCase(_FakeNonStreamingPort())
+        uc = ModelInvokeUseCase(provider_resolver=_fake_resolver, port=_FakeNonStreamingPort())
         chunks = [c async for c in uc.execute_stream("hi", request_id="r10")]
     finally:
         reset_tenant_context(token)
@@ -186,7 +191,7 @@ async def test_onboard_create_model_and_invoke_with_template():
     vendors = VendorRepository()
     templates = PromptTemplateRepository()
     onboard = ModelProviderOnboardingService(vendors)
-    invoker = UnifiedModelInvocationService(vendors, templates, _FakePort())
+    invoker = UnifiedModelInvocationService(vendors, templates, _fake_resolver)
 
     v = await onboard.register_vendor(
         vendor_id="v1", plugin_registration_ref="p1", name="O",
@@ -219,7 +224,7 @@ async def test_call_stream_structured_yields_chunks():
     vendors = VendorRepository()
     templates = PromptTemplateRepository()
     onboard = ModelProviderOnboardingService(vendors)
-    invoker = UnifiedModelInvocationService(vendors, templates, _FakePort())
+    invoker = UnifiedModelInvocationService(vendors, templates, _fake_resolver)
 
     v = await onboard.register_vendor(
         vendor_id="v1", plugin_registration_ref="p1", name="O",
@@ -254,7 +259,7 @@ async def test_invoke_rejects_when_no_default_and_no_model():
         vendor_id="v1", plugin_registration_ref="p1", name="O",
         config=VendorConfig("openai", "https://api", "h", 1000), tenant_id="t1",
     )
-    invoker = UnifiedModelInvocationService(vendors, PromptTemplateRepository(), _FakePort())
+    invoker = UnifiedModelInvocationService(vendors, PromptTemplateRepository(), _fake_resolver)
     try:
         await invoker.call(tenant_id="t1", vendor_id="v1", model_id="default")
         assert False, "无默认模型应拒绝"

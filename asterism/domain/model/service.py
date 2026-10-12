@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from collections.abc import AsyncIterator
-from typing import Optional
+from typing import Callable, Optional
 
 from .catalog import (
     Vendor,
@@ -84,12 +84,12 @@ class UnifiedModelInvocationService:
     def __init__(
         self,
         vendor_repo: VendorRepository,
-        template_repo: PromptTemplateRepository,
-        port: ModelPort,
+        template_repo: Optional[PromptTemplateRepository],
+        provider_resolver: Callable[[Vendor], ModelPort],
     ) -> None:
         self._vendors = vendor_repo
         self._templates = template_repo
-        self._port = port
+        self._resolve = provider_resolver
 
     async def call(
         self,
@@ -105,7 +105,8 @@ class UnifiedModelInvocationService:
         model = await self._pick_model(vendor, model_id)
         prompt = await self._render_prompt(tenant_id, template_id, var_map or {})
         req = ModelRequest(tenant_id=tenant_id, prompt=prompt, model=model.model_id, max_tokens=max_tokens)
-        resp: ModelResponse = await self._port.complete(req)
+        port = self._resolve(vendor)
+        resp: ModelResponse = await port.complete(req)
         return InvocationResult(
             text=resp.text,
             tenant_id=tenant_id,
@@ -152,12 +153,13 @@ class UnifiedModelInvocationService:
         prompt = await self._render_prompt(tenant_id, template_id, var_map or {})
         req = ModelRequest(tenant_id=tenant_id, prompt=prompt, model=model.model_id, max_tokens=max_tokens)
         # 探测可选流式能力：无则回退为单次完整生成（单帧 finished），保持 SSE 契约
-        streamer = getattr(self._port, "complete_stream", None)
+        port = self._resolve(vendor)
+        streamer = getattr(port, "complete_stream", None)
         if streamer is not None:
             async for chunk in streamer(req):
                 yield chunk
             return
-        resp = await self._port.complete(req)
+        resp = await port.complete(req)
         yield ModelChunk(
             content=resp.text,
             tenant_id=resp.tenant_id,

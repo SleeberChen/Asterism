@@ -11,6 +11,9 @@ class ModelInvokeRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=8000, description="提示词文本")
     model: str = Field("default", max_length=64, description="模型标识")
     max_tokens: int = Field(2048, ge=1, le=32768, description="最大生成 token 数")
+    vendor_id: Optional[str] = Field(
+        "siliconflow", max_length=64, description="结构化路径厂商 ID（默认硅基流动）"
+    )
 
 
 class ModelInvokeResponse(BaseModel):
@@ -26,7 +29,9 @@ class ModelStreamRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=8000, description="提示词文本")
     model: str = Field("default", max_length=64, description="模型标识")
     max_tokens: int = Field(2048, ge=1, le=32768, description="最大生成 token 数")
-    vendor_id: Optional[str] = Field(None, max_length=64, description="结构化路径：厂商 ID")
+    vendor_id: Optional[str] = Field(
+        "siliconflow", max_length=64, description="结构化路径：厂商 ID（默认硅基流动）"
+    )
     template_id: Optional[str] = Field(None, max_length=64, description="结构化路径：提示词模板 ID")
     var_map: Optional[dict[str, str]] = Field(None, description="模板变量映射")
 

@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import asynccontextmanager
 
 import pytest
 
@@ -22,12 +23,39 @@ import pytest
 from fastapi.testclient import TestClient
 
 from asterism.main import create_app
+from asterism.application.model.use_case import ModelInvokeUseCase
+from asterism.domain.model.catalog import Vendor, VendorConfig, ModelSpec, ModelCapability
+from asterism.domain.model.repository import VendorRepository, PromptTemplateRepository
+from asterism.infrastructure.model.provider import StubModelAdapter
 
 
 @pytest.fixture
 def client():
-    """按运行形态独立部署入口构建应用；TestClient 上下文触发 lifespan。"""
+    """构建应用并以内存仓储 + 桩适配器覆盖模型用例（SSE 机制测试与网络 / 密钥解耦）。
+
+    真实验证（硅基流动默认供应商）见 ``scripts/test_siliconflow_invoke.py``；本用例只验证
+    SSE 帧格式、末帧 finished、隔离上下文复位等链路机制，故用内存桩厂商，避免外部依赖。
+    """
     app = create_app()
+
+    @asynccontextmanager
+    async def _bundle():
+        vendors = VendorRepository()
+        templates = PromptTemplateRepository()
+        v = Vendor(
+            "siliconflow", "p1", "Stub", VendorConfig("stub", "https://api", "h", 1000),
+            tenant_id="t-stream",
+        )
+        v.create_model(ModelSpec("m1", "Stub", ModelCapability(1000), is_default=True))
+        v.enable()
+        await vendors.save(v)
+        yield vendors, templates
+
+    app.state.model_use_case = ModelInvokeUseCase(
+        provider_resolver=lambda _v: StubModelAdapter(),
+        repo_bundle_factory=_bundle,
+        port=StubModelAdapter(),
+    )
     with TestClient(app) as c:
         yield c
 

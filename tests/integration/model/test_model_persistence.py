@@ -11,6 +11,8 @@
 
 import os
 
+from contextlib import asynccontextmanager
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -58,6 +60,24 @@ async def _reset_bc_model_tables(engine):
             await conn.execute(text("DELETE FROM asterism_prompt_templates"))
 
 
+def _invoke_repo_bundle(engine):
+    """构造 use_case 的每请求模型仓储束（与组合根 ``bootstrap/model._model_repo_bundle`` 同语义）。
+
+    每请求开独立会话并构造 (VendorRepository, PromptTemplateRepository)，退出即关会话，
+    数据从 DB 重载（非内存对象）。
+    """
+
+    @asynccontextmanager
+    async def _cm():
+        session = AsyncSession(engine, expire_on_commit=False)
+        try:
+            yield build_model_repositories(session)
+        finally:
+            await session.close()
+
+    return _cm
+
+
 async def test_persistence_round_trip_and_structured_invoke():
     engine = await _make_engine()
     try:
@@ -82,10 +102,14 @@ async def test_persistence_round_trip_and_structured_invoke():
 
         # 新会话模拟真实进程边界：数据已从 DB 重载（非内存对象）
         async with AsyncSession(engine, expire_on_commit=False) as s2:
-            vendors2, templates2 = build_model_repositories(s2)
+            vendors2, _ = build_model_repositories(s2)
             token = set_tenant_context(TenantContext(tenant_id="t1", request_id="r1"))
             try:
-                uc = ModelInvokeUseCase(StubModelAdapter(), vendor_repo=vendors2, template_repo=templates2)
+                uc = ModelInvokeUseCase(
+                    provider_resolver=lambda _v: StubModelAdapter(),
+                    repo_bundle_factory=_invoke_repo_bundle(engine),
+                    port=StubModelAdapter(),
+                )
                 resp = await uc.execute(vendor_id="v1", template_id="t1", var_map={"role": "专家"}, model="default")
             finally:
                 reset_tenant_context(token)
@@ -124,10 +148,14 @@ async def test_streaming_invoke_end_to_end_matches_buffered():
             await s1.commit()
 
         async with AsyncSession(engine, expire_on_commit=False) as s2:
-            vendors2, templates2 = build_model_repositories(s2)
+            vendors2, _ = build_model_repositories(s2)
             token = set_tenant_context(TenantContext(tenant_id="t1", request_id="r-stream"))
             try:
-                uc = ModelInvokeUseCase(StubModelAdapter(), vendor_repo=vendors2, template_repo=templates2)
+                uc = ModelInvokeUseCase(
+                    provider_resolver=lambda _v: StubModelAdapter(),
+                    repo_bundle_factory=_invoke_repo_bundle(engine),
+                    port=StubModelAdapter(),
+                )
                 buffered = await uc.execute(vendor_id="v1", template_id="t1", var_map={"role": "专家"}, model="default")
                 chunks: list[ModelChunk] = [
                     c

@@ -58,6 +58,7 @@ async def model_invoke(
             request_id=tenant.request_id,
             model=body.model,
             max_tokens=body.max_tokens,
+            vendor_id=body.vendor_id,
         )
         return ApiResult.ok(
             ModelInvokeResponse(

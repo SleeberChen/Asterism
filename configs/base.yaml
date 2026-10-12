@@ -22,6 +22,17 @@ model:
 rag:
   top_k: 4
   max_context_tokens: 2000
+  vector:
+    # 向量库后端：inmemory（默认，零依赖演示）| milvus（真实嵌入 + 持久化，经配置启用）
+    backend: inmemory
+    milvus:
+      # 默认指向本地私有化 Milvus（生产按环境覆盖）
+      host: 172.17.0.4
+      port: 19530
+      collection: asterism_rag
+    embedding:
+      # 本地嵌入模型（FastEmbed，离线、中文可用）；生产 Milvus 后端使用
+      model_name: BAAI/bge-small-zh-v1.5
 
 feature_flags:
   rag_demo_enabled: true

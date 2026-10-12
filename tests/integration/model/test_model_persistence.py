@@ -49,13 +49,13 @@ async def _reset_bc_model_tables(engine):
     async with engine.begin() as conn:
         if dialect == "mysql":
             await conn.execute(text("SET FOREIGN_KEY_CHECKS=0"))
-            for t in ("models", "vendors", "prompt_templates"):
+            for t in ("asterism_models", "asterism_vendors", "asterism_prompt_templates"):
                 await conn.execute(text(f"DELETE FROM {t}"))
             await conn.execute(text("SET FOREIGN_KEY_CHECKS=1"))
         else:  # sqlite / 其他：子表先清，规避外键约束
-            await conn.execute(text("DELETE FROM models"))
-            await conn.execute(text("DELETE FROM vendors"))
-            await conn.execute(text("DELETE FROM prompt_templates"))
+            await conn.execute(text("DELETE FROM asterism_models"))
+            await conn.execute(text("DELETE FROM asterism_vendors"))
+            await conn.execute(text("DELETE FROM asterism_prompt_templates"))
 
 
 async def test_persistence_round_trip_and_structured_invoke():
@@ -229,7 +229,7 @@ async def test_prompt_template_persistence_round_trip():
 
         # 验证版本控制：schema_version 已记录成功应用的 V1.0.0
         async with engine.connect() as conn:
-            res = await conn.execute(text("SELECT version, success FROM schema_version"))
+            res = await conn.execute(text("SELECT version, success FROM asterism_schema_version"))
             rows = res.fetchall()
         assert ("1.0.0", 1) in [(r[0], r[1]) for r in rows]
     finally:

@@ -6,8 +6,8 @@ app:
 
 deployment:
   # 运行形态双模（P0 CON05 / P3 §7.1）：
-  #   standalone = 独立部署（默认可运行，12/12 应用，APP-SYSMGMT 全量启用）
-  #   nebula     = 并入星云体系（11/12，APP-SYSMGMT 不启用，用户/权限由星云提供）
+  #   standalone = 独立部署（默认可运行，12/12 应用，APP-SYSTEM 全量启用）
+  #   nebula     = 并入星云体系（11/12，APP-SYSTEM 不启用，用户/权限由星云提供）
   # 可用环境变量覆盖：ASTERISM__DEPLOYMENT__MODE=nebula
   mode: standalone
 

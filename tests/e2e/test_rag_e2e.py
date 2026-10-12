@@ -48,9 +48,10 @@ def test_query_demo_tenant_returns_answer(client):
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["tenant_id"] == "demo-tenant"
-    assert body["answer"]
-    assert any(s["doc_id"] == "doc-asterism" for s in body["sources"])
+    data = body["data"]  # 统一信封：业务负载在 data 内
+    assert data["tenant_id"] == "demo-tenant"
+    assert data["answer"]
+    assert any(s["doc_id"] == "doc-asterism" for s in data["sources"])
 
 
 def test_unknown_tenant_no_leak(client):
@@ -62,8 +63,9 @@ def test_unknown_tenant_no_leak(client):
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["tenant_id"] == "stranger"
-    assert body["sources"] == []  # 未越权返回他租户内容
+    data = body["data"]  # 统一信封：业务负载在 data 内
+    assert data["tenant_id"] == "stranger"
+    assert data["sources"] == []  # 未越权返回他租户内容
 
 
 def test_empty_query_maps_to_param_error(client):
@@ -96,7 +98,7 @@ def test_tenant_isolation_via_second_tenant(client):
         headers={"X-Tenant-Id": "tenant-b"},
     )
     assert resp_b.status_code == 200
-    assert all(s["doc_id"] == "db" for s in resp_b.json()["sources"])
+    assert all(s["doc_id"] == "db" for s in resp_b.json()["data"]["sources"])
 
     resp_a = client.post(
         "/api/v1/rag/query",
@@ -104,4 +106,4 @@ def test_tenant_isolation_via_second_tenant(client):
         headers={"X-Tenant-Id": "demo-tenant"},
     )
     assert resp_a.status_code == 200
-    assert all(s["doc_id"] != "db" for s in resp_a.json()["sources"])
+    assert all(s["doc_id"] != "db" for s in resp_a.json()["data"]["sources"])

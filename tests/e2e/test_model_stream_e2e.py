@@ -65,10 +65,11 @@ def test_stream_returns_sse_frames_with_final_flag(client):
 
     frames = _parse_sse(body)
     assert frames, "应至少产生一帧 SSE 数据"
-    assert all(f["tenant_id"] == "t-stream" for f in frames)
-    assert frames[-1]["finished"] is True
-    assert not any(f["finished"] for f in frames[:-1])  # 仅末帧置位
-    assert "".join(f["content"] for f in frames)  # 内容非空
+    # 每帧包裹统一信封：业务负载在 data 内
+    assert all(f["data"]["tenant_id"] == "t-stream" for f in frames)
+    assert frames[-1]["data"]["finished"] is True
+    assert not any(f["data"]["finished"] for f in frames[:-1])  # 仅末帧置位
+    assert "".join(f["data"]["content"] for f in frames)  # 内容非空
 
 
 def test_stream_content_matches_buffered_invoke(client):
@@ -89,8 +90,8 @@ def test_stream_content_matches_buffered_invoke(client):
         assert resp.status_code == 200
         body = "".join(resp.iter_text())
 
-    streamed = "".join(f["content"] for f in _parse_sse(body))
-    assert streamed == buffered.json()["text"]
+    streamed = "".join(f["data"]["content"] for f in _parse_sse(body))
+    assert streamed == buffered.json()["data"]["text"]
 
 
 def test_stream_does_not_leak_tenant_context_after_streaming(client):

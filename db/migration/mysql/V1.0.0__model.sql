@@ -4,20 +4,20 @@
 -- 落点约定：<repo>/db/migration/mysql/V1.0.0__model.sql（参照 Nebula Flyway 版本控制）
 -- 默认数据库方言（用户指定统一默认 MySQL）；SQLite 仅用于零依赖测试。
 -- 硬约束（DDD 战术设计）：
---   1) 1 聚合 = 1 主表（vendors / prompt_templates 为聚合根主表）
+--   1) 1 聚合 = 1 主表（asterism_vendors / asterism_prompt_templates 为聚合根主表）
 --   2) 聚合根主表含 version 乐观锁（BIGINT，冲突映射 409）
---   3) 跨聚合只存 ID；models.vendor_id 为聚合内关联（同一 BC，非跨 BC 外键）
+--   3) 跨聚合只存 ID；asterism_models.vendor_id 为聚合内关联（同一 BC，非跨 BC 外键）
 --   4) tenant_id 行级隔离 + 索引（FIELD 租户隔离模式）
 --   5) 凭据句柄 credential_handle 仅密文定位引用（L3 不落明文）
 -- 类型约定（MySQL 方言）：JSON→JSON；BOOLEAN→TINYINT(1)；乐观锁 version→BIGINT
--- 注：本脚本已联调验证（环境 MySQL 5.7.44，凭据 nebula/nebula，2026-10-11）：vendors/models/prompt_templates 三表 + schema_version 建表通过，BC-MODEL 集成测试 4 例全绿（见 tests/integration/model/test_model_persistence.py）。兼容 MySQL 5.7+/8.0。
+-- 注：本脚本已联调验证（环境 MySQL 5.7.44，凭据 nebula/nebula，2026-10-11）：asterism_vendors/asterism_models/asterism_prompt_templates 三表 + schema_version 建表通过，BC-MODEL 集成测试 4 例全绿（见 tests/integration/model/test_model_persistence.py）。兼容 MySQL 5.7+/8.0。
 -- 幂等：全部 IF NOT EXISTS；重放安全（apply_migrations 按 schema_version 去重）
 -- =====================================================================
 
 SET NAMES utf8mb4;
 
--- 2.1 厂商聚合根主表（ET-03 演进：Vendor 聚合根 = 身份 + VendorConfig(VO) + models）
-CREATE TABLE IF NOT EXISTS vendors (
+-- 2.1 厂商聚合根主表（ET-03 演进：Vendor 聚合根 = 身份 + VendorConfig(VO) + asterism_models）
+CREATE TABLE IF NOT EXISTS asterism_vendors (
     vendor_id               VARCHAR(64)  NOT NULL                COMMENT 'Vendor 聚合根 ID',
     plugin_registration_ref VARCHAR(255) NOT NULL                COMMENT '插件注册项引用（1:1，IN1）',
     name                   VARCHAR(128) NOT NULL                COMMENT '厂商名称',
@@ -32,11 +32,11 @@ CREATE TABLE IF NOT EXISTS vendors (
     PRIMARY KEY (vendor_id),
     UNIQUE KEY uk_plugin_registration_ref (plugin_registration_ref)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '厂商聚合根主表（ET-03 演进）';
-CREATE INDEX idx_vendors_tenant ON vendors (tenant_id);
-CREATE INDEX idx_vendors_status ON vendors (status);
+CREATE INDEX idx_asterism_vendors_tenant ON asterism_vendors (tenant_id);
+CREATE INDEX idx_asterism_vendors_status ON asterism_vendors (status);
 
 -- 2.2 模型（聚合内实体，从属于 Vendor；vendor_id 聚合内关联）
-CREATE TABLE IF NOT EXISTS models (
+CREATE TABLE IF NOT EXISTS asterism_models (
     model_id               VARCHAR(64)  NOT NULL                COMMENT 'Model 聚合内实体 ID',
     vendor_id              VARCHAR(64)  NOT NULL                COMMENT '所属 Vendor（聚合内关联）',
     tenant_id              VARCHAR(64)  NOT NULL                COMMENT '租户隔离维度',
@@ -47,13 +47,13 @@ CREATE TABLE IF NOT EXISTS models (
     is_default             TINYINT(1)   NOT NULL DEFAULT 0       COMMENT '是否默认模型(0/1)',
     prompt_template_ids    JSON         NOT NULL                COMMENT '关联提示词模板 ID 列表 JSON',
     PRIMARY KEY (model_id),
-    CONSTRAINT fk_models_vendor FOREIGN KEY (vendor_id) REFERENCES vendors (vendor_id)
+    CONSTRAINT fk_asterism_models_vendor FOREIGN KEY (vendor_id) REFERENCES asterism_vendors (vendor_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '模型（聚合内实体）';
-CREATE INDEX idx_models_vendor ON models (vendor_id);
-CREATE INDEX idx_models_tenant ON models (tenant_id);
+CREATE INDEX idx_asterism_models_vendor ON asterism_models (vendor_id);
+CREATE INDEX idx_asterism_models_tenant ON asterism_models (tenant_id);
 
 -- 2.3 提示词模板（独立聚合根，可跨 Model / 跨 BC 复用，需稳定 ID 引用）
-CREATE TABLE IF NOT EXISTS prompt_templates (
+CREATE TABLE IF NOT EXISTS asterism_prompt_templates (
     template_id            VARCHAR(64)  NOT NULL                COMMENT 'PromptTemplate 聚合根 ID',
     name                   VARCHAR(128) NOT NULL                COMMENT '模板名称',
     content                TEXT         NOT NULL                COMMENT '模板内容（含 {{var}} 占位符）',
@@ -64,5 +64,5 @@ CREATE TABLE IF NOT EXISTS prompt_templates (
     tenant_id              VARCHAR(64)  NOT NULL                COMMENT '租户隔离维度',
     PRIMARY KEY (template_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '提示词模板（独立聚合根）';
-CREATE INDEX idx_prompt_templates_tenant ON prompt_templates (tenant_id);
-CREATE INDEX idx_prompt_templates_name ON prompt_templates (name);
+CREATE INDEX idx_asterism_prompt_templates_tenant ON asterism_prompt_templates (tenant_id);
+CREATE INDEX idx_asterism_prompt_templates_name ON asterism_prompt_templates (name);

@@ -14,7 +14,7 @@ from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from asterism.interfaces.compliance.deps import require_permission, resolve_tenant_context
-from asterism.main import create_app
+from asterism.main import create_app, install_exception_handlers
 
 PROTECTED_ENTRYPOINTS = [
     ("POST", "/api/v1/rag/query"),
@@ -42,6 +42,8 @@ def test_unauthenticated_access_is_rejected_on_every_entrypoint(client):
 def test_authz_unavailable_denies_instead_of_downgrading():
     """鉴权用例未装配 → 403 拒绝服务，**不降级为免认证放行**（降级次数 = 0）。"""
     app = FastAPI()
+    # 复用生产全局处理器：鉴权依赖抛 AsterismError，需经全局映射为信封（强制规范）
+    install_exception_handlers(app)
 
     @app.get("/protected")
     async def _protected(_decision=Depends(require_permission("rag", "read"))):
@@ -55,6 +57,8 @@ def test_authz_unavailable_denies_instead_of_downgrading():
 def test_tenant_context_injection_is_the_single_entrypoint():
     """`resolve_tenant_context` 为隔离上下文统一注入点（TC-12），缺失租户即 401。"""
     app = FastAPI()
+    # 复用生产全局处理器：缺租户头抛 AsterismError，需经全局映射为 401 信封（强制规范）
+    install_exception_handlers(app)
 
     @app.get("/ctx")
     async def _ctx(ctx=Depends(resolve_tenant_context)):

@@ -113,7 +113,7 @@ async def _ensure_schema_version(engine: AsyncEngine) -> None:
     async with engine.begin() as conn:
         await conn.execute(
             text(
-                "CREATE TABLE IF NOT EXISTS schema_version ("
+                "CREATE TABLE IF NOT EXISTS asterism_schema_version ("
                 "  version VARCHAR(50) NOT NULL,"
                 "  description VARCHAR(200) NOT NULL,"
                 "  script VARCHAR(200) NOT NULL,"
@@ -130,7 +130,7 @@ async def _ensure_schema_version(engine: AsyncEngine) -> None:
 
 async def _applied_versions(engine: AsyncEngine) -> set[str]:
     async with engine.connect() as conn:
-        res = await conn.execute(text("SELECT version FROM schema_version WHERE success = 1"))
+        res = await conn.execute(text("SELECT version FROM asterism_schema_version WHERE success = 1"))
         return {r[0] for r in res.fetchall()}
 
 
@@ -172,7 +172,7 @@ async def apply_migrations(engine: AsyncEngine, migrations_dir: Path | None = No
                     await conn.execute(text(stmt))
                 await conn.execute(
                     text(
-                        "INSERT INTO schema_version "
+                        "INSERT INTO asterism_schema_version "
                         "(version, description, script, checksum, installed_on, success) "
                         "VALUES (:v, :d, :s, :c, :t, 1)"
                     ),
@@ -184,7 +184,7 @@ async def apply_migrations(engine: AsyncEngine, migrations_dir: Path | None = No
                 async with engine.begin() as conn:
                     await conn.execute(
                         text(
-                            "INSERT INTO schema_version "
+                            "INSERT INTO asterism_schema_version "
                             "(version, description, script, checksum, installed_on, success) "
                             "VALUES (:v, :d, :s, :c, :t, 0)"
                         ),

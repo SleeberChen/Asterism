@@ -35,14 +35,14 @@ asterism/                      # 包根 asterism.*
 │   ├── compliance.py          #   wire_compliance(app)（横切基座，须先装配）
 │   ├── rag.py                 #   wire_rag(app)
 │   ├── model.py               #   wire_model(app)
-│   └── sys_mgmt.py            #   wire_sys_mgmt(app)（仅独立部署形态装配）
+│   └── system.py            #   wire_system(app)（仅独立部署形态装配）
 └── main.py                    # 组合根入口（薄）：ASGI 工厂 + 全局异常 + 调 register_apps
 tests/                         # 三级测试：unit / integration / e2e
 configs/                       # 环境配置覆盖层（base/dev/test/prod）
 tools/                         # 工程工具：架构守护契约 + GATE-04 脚本
 ```
 
-四层下各含 12 个应用子包（core/plugin/model/tool/skill/memory/factory/sys_mgmt/compliance/
+四层下各含 12 个应用子包（core/plugin/model/tool/skill/memory/factory/system/compliance/
 observ/nfr/plan，对应 P3 的 12 个 `APP-*`）。`rag` 子包为示范业务应用（内部知识库问答），
 展示在框架上构建应用的标准垂直切片。
 
@@ -64,7 +64,7 @@ observ/nfr/plan，对应 P3 的 12 个 `APP-*`）。`rag` 子包为示范业务�
 | **SKILL** `BC-SKILL`（C10） | 技能状态机（加载/启用/停用/卸载）、领域模型 | `SkillLifecycleUseCase` | `/api/v1/skills` | 受管控来源加载、沙箱边界实现 | **`plugins/skill/base.py`（`SkillProvider`）** |
 | **MEMORY** `BC-MEMORY`（C11） | 记忆聚合（会话/短期）、端口 `MemoryPort`、截断/保留策略 | `MemoryReadUseCase`/`MemoryWriteUseCase`（强制租户/会话隔离） | `/api/v1/memory` | 记忆存储实现（进程内/外部）、租户命名空间隔离 | **`plugins/memory/base.py`（`MemoryProvider`）** |
 | **FACTORY** `BC-APPFAB`（C07） | 应用蓝图/模板聚合（RAG/Agent）、默认编排链路 | `CreateAppUseCase`（生成骨架/默认链路） | `/api/v1/apps`（创建） | 蓝图加载、编排链路装配（写入运行态配置） | 装配入口复用 **CORE** 编排底座 |
-| **SYSMGMT** `BC-SYSMGMT`（C14，仅独立部署） | 用户/角色/菜单/审计查询聚合与规则 | 用户/角色/菜单/审计查询用例 | `/api/v1/sys/*` | 用户/角色/权限存储（仅独立部署；并入星云不启用） | 鉴权读取走 **COMPLIANCE**（IC-07） |
+| **SYSTEM** `BC-SYSMGMT`（C14，仅独立部署） | 用户/角色/菜单/审计查询聚合与规则 | 用户/角色/菜单/审计查询用例 | `/api/v1/sys/*` | 用户/角色/权限存储（仅独立部署；并入星云不启用） | 鉴权读取走 **COMPLIANCE**（IC-07） |
 | **COMPLIANCE** `BC-COMPLIANCE`（C12） | 认证/授权模型、审计实体、脱敏规则、break-glass 五要素 | 认证接入、审计埋点、脱敏开关用例（八步链 M1 接入点） | 认证中间件/鉴权依赖注入基类（各 APP 路由复用）+ `/api/v1/audit` 查询 | 认证实现（JWT 等）、审计写入、脱敏实现（接 `seedwork.logging.redact`） | 强审计/脱敏贯穿全应用（等保二级、留存≥180天） |
 | **OBSERV** `BC-OBSERV`（C13,17） | 指标/追踪领域模型、计数器、三级测试抽象 | 可观测采集、测试验证用例 | `/metrics` 暴露 + 追踪查询 | 指标采集实现、mock 层（接 `seedwork.logging`） | 埋点契约 IC-09 |
 | **NFR** `BC-NFR`（C16,19） | NFR 七类框架模型、量化模板、校验清单聚合 | `NfrValidateUseCase`（生成校验结论供 CI 消费） | 无对外服务（内部消费）；`/api/v1/nfr/report` 可选查询 | 校验清单加载、门禁复用（接 `tools/check_*`） | 校验结论由 CI 门禁（GATE-*）同步消费 |
@@ -96,7 +96,7 @@ observ/nfr/plan，对应 P3 的 12 个 `APP-*`）。`rag` 子包为示范业务�
 | --- | --- | --- | --- |
 | **interfaces** 接口层 | **Pydantic `BaseModel`** | 处在信任边界，需要入参校验、序列化、自动生成 OpenAPI | `interfaces/rag/schemas.py`、`interfaces/model/schemas.py`、`interfaces/compliance/schemas.py` |
 | **application** 应用层 | **优先 `dataclass`** | DTO 多为进程内传递，无需校验 / 序列化开销；**仅当**需跨进程传输、序列化或强校验时才升级为 Pydantic | 当前用例直接返回领域对象（`application/rag/use_case.py`），未额外建 DTO |
-| **domain** 领域层 | **`dataclass` 或普通类** | 领域必须**框架零依赖**（`TC-10`）；`dataclass` 具备构造期行为、默认值与不变量承载能力 | `domain/rag/model.py`、`domain/model/model.py`、`domain/compliance/model.py`、`domain/sys_mgmt/model.py` |
+| **domain** 领域层 | **`dataclass` 或普通类** | 领域必须**框架零依赖**（`TC-10`）；`dataclass` 具备构造期行为、默认值与不变量承载能力 | `domain/rag/model.py`、`domain/model/model.py`、`domain/compliance/model.py`、`domain/system/model.py` |
 | **infrastructure** 基础设施层 | **Pydantic Settings / `BaseModel`** | 配置与外部客户端参数天然需要校验 + 外部化（`TC-17`）；本层**允许**框架依赖 | 当前为自研 `Settings`（`infrastructure/config/settings.py`，YAML 分层加载 + `SecretRef` 只写不读）；后续引入 `pydantic-settings` 亦符合本规范 |
 | **跨框架状态结构** | **`TypedDict`** | 消息状态 / 工作流 State 是**跨框架传递的字典**（如 LangGraph 节点间），只需形状声明 | 本仓暂未落地；校验器与示例见 `seedwork/typeddict.py` + `tests/unit/seedwork/test_typeddict.py` |
 
@@ -159,14 +159,34 @@ asterism/main.py               →  不改动（只调 register_apps(app)）
 
 | 复用件 | 位置 | 用途 |
 | --- | --- | --- |
-| `resolve_tenant_context` | `interfaces/compliance/deps.py` | 隔离上下文**统一注入点**（TC-12），各应用路由复用；rag / model / sys_mgmt 均已改为依赖它 |
-| `require_permission(resource, action)` | 同上 | 可选鉴权开关：判定 + 留痕由 COMPLIANCE 完成，拒绝返回 403（`AST-ERR-2002`）；sys_mgmt 路由已启用 |
+| `resolve_tenant_context` | `interfaces/compliance/deps.py` | 隔离上下文**统一注入点**（TC-12），各应用路由复用；rag / model / system 均已改为依赖它 |
+| `require_permission(resource, action)` | 同上 | 可选鉴权开关：判定 + 留痕由 COMPLIANCE 完成，拒绝返回 403（`AST-ERR-2002`）；system 路由已启用 |
 
 演示策略：请求须带 `X-User-Id`；`admin` / `grant` / `break_glass` 类动作须 `X-User-Id: admin`。
 
+### 统一响应规范（强制）
+
+所有 HTTP 响应必须经 `asterism/interfaces/common/result.py` 的 `ApiResult[T]` 信封包裹；
+错误映射集中在 `asterism/main.py` 的全局异常处理器，路由内**不得**手写
+`JSONResponse(exc.to_dict())`。这是强制规范（2026-10-12 落地，覆盖全部接口层）。
+
+- **信封形态**：`{code, message, data, request_id}`
+  - 成功：`code="0"`、`message="ok"`、`data=<业务负载>`、`request_id=<链路标识>`；
+    路由返回 `ApiResult[<业务 Schema>]`，`response_model` 同步设为 `ApiResult[...]`，业务负载置于 `data`。
+  - 失败：`code=AST-ERR-*`、`message=<用户可读信息>`、`data=null`、`request_id=<链路标识>`；
+    由全局处理器把 `AsterismError` / `RequestValidationError`（→422，`AST-ERR-3001`）/ 未预期异常
+    （→500，`AST-ERR-5001`）统一映射为 `ApiResult.fail(...)`。
+- **路由内禁令（强制）**：禁止在路由中 `try/except AsterismError → JSONResponse(...)`，
+  失败一律上抛交全局处理器包裹；鉴权依赖（`deps.py`）抛 `BusinessError`，同样由全局处理器映射
+  （含「鉴权未装配即拒绝服务」的 403 `AST-ERR-2002`，不兜底）。
+- **豁免**：`204 No Content` 与 `/healthz` 探针按设计不包裹（无响应体）。
+- **SSE 流式**：成功帧为 `ApiResult[<ChunkSchema>]` 逐帧序列化；错误帧为 `ApiResult.fail(...)`
+  配 `event: error`，与 JSON 接口同信封。
+- **测试断言**：成功业务字段取 `resp.json()["data"][...]`；错误取 `resp.json()["code"]`（信封顶层）。
+
 ### 运行形态双模（P0 CON05 / P3 §7.1）
 
-同一套业务代码，由 `configs/base.yaml` 的 `deployment.mode` 决定 APP-SYSMGMT 是否启用：
+同一套业务代码，由 `configs/base.yaml` 的 `deployment.mode` 决定 APP-SYSTEM 是否启用：
 
 ```bash
 uv run python -m asterism.main                              # standalone（默认）：12/12 应用
@@ -174,7 +194,7 @@ ASTERISM__DEPLOYMENT__MODE=nebula uv run python -m asterism.main   # 并入星�
 ```
 
 - `standalone`：独立部署，自带最小系统管理（用户 / 角色 / 菜单）；
-- `nebula`：用户 / 权限由星云公共权限服务（`BC-TENANT` / `BC-PERM`）提供，`APP-SYSMGMT` 自动跳过装配。
+- `nebula`：用户 / 权限由星云公共权限服务（`BC-TENANT` / `BC-PERM`）提供，`APP-SYSTEM` 自动跳过装配。
 
 ## 依赖方向（P5 TC-09 / §2.2）
 

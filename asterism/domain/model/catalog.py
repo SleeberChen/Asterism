@@ -208,6 +208,19 @@ class Vendor:
             default_timeout_budget_ms=self.config.default_timeout_budget_ms,
         )
 
+    def update_connection(
+        self, *, access_protocol: str, base_url: str, default_timeout_budget_ms: int
+    ) -> None:
+        """连接配置更新（非机密部分）：替换协议 / 基址 / 超时预算，保留凭据句柄。"""
+        if not access_protocol or not base_url:
+            raise InvariantViolationError("访问协议与基址 URL 必填")
+        self.config = VendorConfig(
+            access_protocol=access_protocol,
+            base_url=base_url,
+            credential_handle=self.config.credential_handle,
+            default_timeout_budget_ms=default_timeout_budget_ms,
+        )
+
     def enable(self) -> None:
         self.status = "启用"
 

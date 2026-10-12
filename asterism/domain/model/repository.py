@@ -71,15 +71,77 @@ class VendorRepository:
         v.rotate_credentials(new_handle)
         await self.save(v)
 
+    async def replace_connection_config(
+        self,
+        vendor_id: str,
+        access_protocol: str,
+        base_url: str,
+        default_timeout_budget_ms: int,
+        expected_version: int,
+        tenant_id: str,
+    ) -> None:
+        v = await self.get_by_id(vendor_id, tenant_id)
+        if v.version != expected_version:
+            raise ConcurrencyError("数据已被他人修改，请刷新后重试（409）")
+        v.update_connection(
+            access_protocol=access_protocol,
+            base_url=base_url,
+            default_timeout_budget_ms=default_timeout_budget_ms,
+        )
+        await self.save(v)
+
     # --- 聚合内模型 ---
     async def list_models(self, vendor_id: str, tenant_id: str) -> list[Model]:
         return list((await self.get_by_id(vendor_id, tenant_id)).models)
+
+    async def scan_models(self, tenant_id: str) -> list[tuple[str, Model]]:
+        """跨厂商列出本租户全部模型，返回 (vendor_id, Model)。"""
+        out: list[tuple[str, Model]] = []
+        for v in self._by_id.values():
+            if v.tenant_id != tenant_id:
+                continue
+            for m in v.models:
+                out.append(
+                    (v.vendor_id, dataclasses.replace(m, prompt_template_ids=list(m.prompt_template_ids)))
+                )
+        return out
+
+    async def get_model(self, model_id: str, tenant_id: str) -> Optional[tuple[str, Model]]:
+        """跨厂商按 id 查模型，命中返回 (vendor_id, Model)，否则 None。"""
+        for v in self._by_id.values():
+            if v.tenant_id != tenant_id:
+                continue
+            for m in v.models:
+                if m.model_id == model_id:
+                    return (
+                        v.vendor_id,
+                        dataclasses.replace(m, prompt_template_ids=list(m.prompt_template_ids)),
+                    )
+        return None
 
     async def get_default_model(self, vendor_id: str, tenant_id: str) -> Optional[Model]:
         for m in (await self.get_by_id(vendor_id, tenant_id)).models:
             if m.is_default:
                 return m
         return None
+
+    # --- 删除（行级隔离；缺租户匹配即 404） ---
+    async def delete(self, vendor_id: str, tenant_id: str) -> None:
+        key = (tenant_id, vendor_id)
+        v = self._by_id.get(key)
+        if v is None:
+            raise NotFoundError(f"厂商不存在: {vendor_id}")
+        # 同步清理插件引用索引，避免悬空键
+        self._by_plugin.pop((tenant_id, v.plugin_registration_ref), None)
+        del self._by_id[key]
+
+    async def delete_model(self, vendor_id: str, model_id: str, tenant_id: str) -> None:
+        v = await self.get_by_id(vendor_id, tenant_id)
+        kept = [m for m in v.models if m.model_id != model_id]
+        if len(kept) == len(v.models):
+            raise NotFoundError(f"模型不存在: {model_id}")
+        v.models = kept
+        self._by_id[(tenant_id, vendor_id)] = v  # 覆盖存储（不触碰 version，删除非乐观锁更新）
 
 
 class PromptTemplateRepository:

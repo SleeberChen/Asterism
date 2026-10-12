@@ -20,7 +20,6 @@ from ...domain.model.catalog import (
     VendorConfig,
     Model,
     ModelCapability,
-    ModelSpec,
     PromptTemplate,
     PromptVariable,
     NotFoundError,
@@ -33,7 +32,7 @@ from ...domain.model.repository import VendorRepository, PromptTemplateRepositor
 # 行模型
 # ---------------------------------------------------------------------------
 class VendorRow(Base):
-    __tablename__ = "vendors"
+    __tablename__ = "asterism_vendors"
 
     vendor_id: Mapped[str] = mapped_column(String, primary_key=True)
     plugin_registration_ref: Mapped[str] = mapped_column(String, unique=True, nullable=False)
@@ -50,11 +49,11 @@ class VendorRow(Base):
 
 
 class ModelRow(Base):
-    __tablename__ = "models"
+    __tablename__ = "asterism_models"
 
     model_id: Mapped[str] = mapped_column(String, primary_key=True)
     vendor_id: Mapped[str] = mapped_column(
-        String, ForeignKey("vendors.vendor_id"), nullable=False, index=True
+        String, ForeignKey("asterism_vendors.vendor_id"), nullable=False, index=True
     )  # 聚合内关联（同一 BC/DA-03，非跨聚合外键）
     tenant_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
@@ -66,7 +65,7 @@ class ModelRow(Base):
 
 
 class PromptTemplateRow(Base):
-    __tablename__ = "prompt_templates"
+    __tablename__ = "asterism_prompt_templates"
 
     template_id: Mapped[str] = mapped_column(String, primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
@@ -253,6 +252,26 @@ class SqlVendorRepository(VendorRepository):
         row.version = expected_version + 1
         await self._s.commit()
 
+    async def replace_connection_config(
+        self,
+        vendor_id: str,
+        access_protocol: str,
+        base_url: str,
+        default_timeout_budget_ms: int,
+        expected_version: int,
+        tenant_id: str,
+    ) -> None:
+        row = await self._s.get(VendorRow, vendor_id)
+        if row is None or row.tenant_id != tenant_id:
+            raise NotFoundError(f"厂商不存在: {vendor_id}")
+        if row.version != expected_version:
+            raise ConcurrencyError("数据已被他人修改，请刷新后重试（409）")
+        row.access_protocol = access_protocol
+        row.base_url = base_url
+        row.default_timeout_budget_ms = default_timeout_budget_ms
+        row.version = expected_version + 1
+        await self._s.commit()
+
     async def list_models(self, vendor_id: str, tenant_id: str) -> list[Model]:
         res = await self._s.execute(
             select(ModelRow).filter_by(vendor_id=vendor_id, tenant_id=tenant_id)
@@ -265,6 +284,39 @@ class SqlVendorRepository(VendorRepository):
         )
         row = res.scalars().first()
         return _model_to_domain(row) if row else None
+
+    async def scan_models(self, tenant_id: str) -> list[tuple[str, Model]]:
+        """跨厂商列出本租户全部模型，返回 (vendor_id, Model)。"""
+        res = await self._s.execute(select(ModelRow).filter_by(tenant_id=tenant_id))
+        return [(r.vendor_id, _model_to_domain(r)) for r in res.scalars().all()]
+
+    async def get_model(self, model_id: str, tenant_id: str) -> Optional[tuple[str, Model]]:
+        """跨厂商按 id 查模型，命中返回 (vendor_id, Model)，否则 None。"""
+        res = await self._s.execute(
+            select(ModelRow).filter_by(model_id=model_id, tenant_id=tenant_id)
+        )
+        row = res.scalars().first()
+        return (row.vendor_id, _model_to_domain(row)) if row else None
+
+    # --- 删除（行级隔离；校验租户；聚合内模型先清，再删聚合根，规避 FK RESTRICT） ---
+    async def delete(self, vendor_id: str, tenant_id: str) -> None:
+        row = await self._s.get(VendorRow, vendor_id)
+        if row is None or row.tenant_id != tenant_id:
+            raise NotFoundError(f"厂商不存在: {vendor_id}")
+        await self._s.execute(
+            delete(ModelRow).where(ModelRow.vendor_id == vendor_id, ModelRow.tenant_id == tenant_id)
+        )
+        await self._s.execute(
+            delete(VendorRow).where(VendorRow.vendor_id == vendor_id, VendorRow.tenant_id == tenant_id)
+        )
+        await self._s.commit()
+
+    async def delete_model(self, vendor_id: str, model_id: str, tenant_id: str) -> None:
+        row = await self._s.get(ModelRow, model_id)
+        if row is None or row.tenant_id != tenant_id or row.vendor_id != vendor_id:
+            raise NotFoundError(f"模型不存在: {model_id}")
+        await self._s.execute(delete(ModelRow).where(ModelRow.model_id == model_id))
+        await self._s.commit()
 
 
 class SqlPromptTemplateRepository(PromptTemplateRepository):

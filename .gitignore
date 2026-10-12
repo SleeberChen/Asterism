@@ -25,6 +25,10 @@ secrets/
 *.local.env
 credentials/
 
+# ===== 本地种子库（环境相关，不入库）=====
+scripts/*.db
+scripts/seed_business.db
+
 # ===== 构建 / 依赖 =====
 .venv/
 venv/

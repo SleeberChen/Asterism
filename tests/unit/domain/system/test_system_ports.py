@@ -1,10 +1,10 @@
-"""APP-SYSMGMT 端口契约单元测试（仅独立部署形态启用）。
+"""APP-SYSTEM 端口契约单元测试（仅独立部署形态启用）。
 
-覆盖 `asterism/domain/sys_mgmt/ports.py`：UserDirectoryPort。
+覆盖 `asterism/domain/system/ports.py`：UserDirectoryPort。
 并入星云形态下由星云公共用户权限服务提供，本端口不装配（P3 §7.1）。
 """
-from asterism.domain.sys_mgmt.model import MenuItem, Role, User
-from asterism.domain.sys_mgmt.ports import UserDirectoryPort
+from asterism.domain.system.model import MenuItem, Role, User
+from asterism.domain.system.ports import UserDirectoryPort
 
 
 class _FakeDirectory:

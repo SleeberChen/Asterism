@@ -1,8 +1,8 @@
-"""APP-SYSMGMT 领域模型单元测试（仅独立部署形态启用，P3 §7.1 / P0 CON05）。
+"""APP-SYSTEM 领域模型单元测试（仅独立部署形态启用，P3 §7.1 / P0 CON05）。
 
-覆盖 `asterism/domain/sys_mgmt/model.py`：User / Role / MenuItem。
+覆盖 `asterism/domain/system/model.py`：User / Role / MenuItem。
 """
-from asterism.domain.sys_mgmt.model import MenuItem, Role, User
+from asterism.domain.system.model import MenuItem, Role, User
 
 
 def test_user_defaults_to_no_roles():

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import List
 
-from asterism.domain.sys_mgmt.model import MenuItem, Role, User
-from asterism.domain.sys_mgmt.ports import UserDirectoryPort
+from asterism.domain.system.model import MenuItem, Role, User
+from asterism.domain.system.ports import UserDirectoryPort
 from asterism.seedwork.context import require_tenant_context
 
 

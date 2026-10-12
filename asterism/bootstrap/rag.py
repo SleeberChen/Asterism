@@ -11,7 +11,7 @@ from asterism.infrastructure.rag.model_provider import StubGenerationProvider
 from asterism.infrastructure.rag.vector_store import InMemoryVectorStore
 from asterism.interfaces.rag.router import router as rag_router
 
-# 演示租户（生产由 APP-SYSMGMT / 星云提供）
+# 演示租户（生产由 APP-SYSTEM / 星云提供）
 DEMO_TENANT = "demo-tenant"
 
 

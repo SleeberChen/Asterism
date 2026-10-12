@@ -11,6 +11,7 @@
 
 import os
 
+import pytest
 from contextlib import asynccontextmanager
 
 from sqlalchemy import text
@@ -42,11 +43,30 @@ async def _make_engine():
     return engine
 
 
+def _require_test_db_for_reset(engine) -> None:
+    """安全护栏：仅在显式测试库上清空 BC-MODEL 三表，杜绝误清外部/生产 MySQL。
+
+    - 显式 opt-in：环境变量 ASTERISM__INTEGRATION_TEST_DB 非空；
+    - 或数据库名（URL 路径末段）含 'test'（大小写不敏感）。
+    否则跳过清空（该集成用例整体 skip），绝不 DELETE 真实库。
+    """
+    url = str(engine.url)
+    db_name = url.rstrip("/").split("/")[-1].split("?")[0]
+    opt_in = bool(os.environ.get("ASTERISM__INTEGRATION_TEST_DB"))
+    if not (opt_in or "test" in db_name.lower()):
+        pytest.skip(
+            f"拒绝在疑似非测试库 '{db_name}' 上清空 BC-MODEL 表；"
+            f"如需运行集成测试请设 ASTERISM__INTEGRATION_TEST_DB=1 或使用 *_test 数据库"
+        )
+
+
 async def _reset_bc_model_tables(engine):
     """清空 vendors/models/prompt_templates（仅 BC-MODEL 三表），不触碰业务库其他 BC 的表。
 
     每次用例前调用：vendor_id/template_id 为主键且用例使用固定 ID，必须清空以避免主键冲突。
+    安全护栏：仅当 _require_test_db_for_reset 通过（显式测试库）才执行 DELETE，否则 skipped。
     """
+    _require_test_db_for_reset(engine)
     dialect = engine.dialect.name
     async with engine.begin() as conn:
         if dialect == "mysql":
